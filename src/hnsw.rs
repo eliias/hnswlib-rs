@@ -1,13 +1,12 @@
-//! A rust implementation of Approximate NN search from:  
+//! A rust implementation of Approximate NN search from:
 //! Efficient and robust approximate nearest neighbour search using Hierarchical Navigable
-//! small World graphs. 
+//! small World graphs.
 //! Yu. A. Malkov, D.A Yashunin 2016, 2018
 
 
 use serde::{Serialize, Deserialize};
 
 use std::time::{SystemTime};
-use cpu_time::ProcessTime;
 
 use std::cmp::Ordering;
 
@@ -22,7 +21,7 @@ use hashbrown::HashMap;
 use std::collections::binary_heap::BinaryHeap;
 #[allow(unused)]
 use std::collections::HashSet;
-
+// use cpu_time::ProcessTime;
 
 use log::debug;
 use log::trace;
@@ -37,8 +36,8 @@ pub use crate::dist::Distance;
 
 
 /// This unit structure provides the type to instanciate Hnsw with,
-/// to get reload of graph only in the the structure. 
-/// It must be associated to the unit structure dist::NoDist for the distance type to provide. 
+/// to get reload of graph only in the the structure.
+/// It must be associated to the unit structure dist::NoDist for the distance type to provide.
 #[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub struct NoData;
 
@@ -113,9 +112,9 @@ impl PointIdWithOrder {
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Neighbour {
     /// identification of data vector as given in initializing hnsw
-    pub d_id : DataId, 
-    /// distance of neighbours 
-    pub distance :f32, 
+    pub d_id : DataId,
+    /// distance of neighbours
+    pub distance :f32,
     /// point identification inside layers
     pub p_id :PointId,
 }
@@ -136,10 +135,10 @@ impl Neighbour {
 
 //=======================================================================================
 
-/// The basestructure representing a data point.  
-/// Its constains data as coming from the client, its client id,  
+/// The basestructure representing a data point.
+/// Its constains data as coming from the client, its client id,
 /// and position in layer representation and neighbours.
-/// 
+///
 // neighbours table : one vector by layer so neighbours is allocated to NB_LAYER_MAX
 //
 #[derive(Debug, Clone)]
@@ -149,7 +148,7 @@ pub struct Point<T:Clone+Send+Sync> {
     /// an id coming from client using hnsw, should identify point uniquely
     origin_id : DataId,
     /// a point id identifying point as stored in our structure
-    p_id: PointId, 
+    p_id: PointId,
     /// neighbours info
     pub(crate) neighbours:Arc<RwLock<Vec<Vec<Arc<PointWithOrder<T>> >> >>,
 }
@@ -192,7 +191,7 @@ impl<T:Clone+Send+Sync> Point<T> {
             if nb_ngbh > 0usize {
                 neighbours.reserve(nb_ngbh);
                 for pointwo in &ref_neighbours[i] {
-                    neighbours.push(Neighbour::new(pointwo.point_ref.get_origin_id(),pointwo.dist_to_ref, 
+                    neighbours.push(Neighbour::new(pointwo.point_ref.get_origin_id(),pointwo.dist_to_ref,
                             pointwo.point_ref.get_point_id()));
                 }
             }
@@ -218,14 +217,14 @@ impl<T:Clone+Send+Sync> Point<T> {
         println!(" neighbours dump : end");
     }
 
-} // end of block 
+} // end of block
 
 //===========================================================================================
 
 /// A structure to store neighbours for of a point.
 #[derive(Debug, Clone)]
 pub(crate) struct  PointWithOrder<T:Clone+Send+Sync> {
-    /// the identificateur of the point for which we store a distance to a point for which 
+    /// the identificateur of the point for which we store a distance to a point for which
     ///  we made a request.
     point_ref: Arc<Point<T>>,
     /// The distance to a point_ref to the request point (not represented in the structure)
@@ -262,7 +261,7 @@ impl <T:Clone+Send+Sync> Ord for PointWithOrder<T> {
         else {
             panic!("got a NaN in a distance");
         }
-    } // end cmp    
+    } // end cmp
 }
 
 
@@ -286,7 +285,7 @@ use rand::prelude::*;
 use rand::distributions::{Uniform};
 
 /// a struct to randomly generate a level for an item according to an exponential law
-/// of parameter given by scale. 
+/// of parameter given by scale.
 /// The distribution is constrained to be in [0..maxlevel[
 pub struct LayerGenerator {
     rng: Arc<Mutex<rand::rngs::StdRng>>,
@@ -298,7 +297,7 @@ pub struct LayerGenerator {
 impl LayerGenerator {
     pub fn new(max_nb_connection: usize, maxlevel:usize) -> Self {
         let scale = 1./(max_nb_connection as f64).ln();
-        LayerGenerator{rng: Arc::new(Mutex::new(StdRng::from_entropy())), 
+        LayerGenerator{rng: Arc::new(Mutex::new(StdRng::from_entropy())),
             unif: Uniform::<f64>::new(0.,1.), scale:scale, maxlevel:maxlevel}
     }
     //
@@ -340,7 +339,7 @@ type Layer<T> = Vec<Arc<Point<T>>>;
 #[allow(unused)]
 pub struct PointIndexation<T:Clone+Send+Sync> {
     /// max number of connection for a point at a layer
-    pub(crate) max_nb_connection: usize, 
+    pub(crate) max_nb_connection: usize,
     ///
     pub(crate) max_layer: usize,
     /// needs at least one representation of points. points_by_layers\[i\] gives the points in layer i
@@ -361,11 +360,11 @@ pub struct PointIndexation<T:Clone+Send+Sync> {
 impl <T:Clone+Send+Sync> Drop for PointIndexation<T> {
 
     fn drop(&mut self) {
-        let cpu_start = ProcessTime::now();
-        let sys_now = SystemTime::now(); 
+        // let cpu_start = ProcessTime::now();
+        let sys_now = SystemTime::now();
         log::info!("entering PointIndexation drop");
         // clear_neighborhood. There are no point in neighborhoods that are not referenced directly in layers.
-        // so we cannot loose reference to a point by cleaning neighborhood 
+        // so we cannot loose reference to a point by cleaning neighborhood
         fn clear_neighborhoods<T: Clone+Send+Sync>(init: &Point<T>) {
                 let mut neighbours = init.neighbours.write();
                 let nb_layer = neighbours.len();
@@ -373,7 +372,7 @@ impl <T:Clone+Send+Sync> Drop for PointIndexation<T> {
                     neighbours[l].clear();
                 }
                 neighbours.clear();
-        }    
+        }
         // clear entry point
         match self.entry_point.write().as_ref() {
             Some(i) => {
@@ -397,7 +396,7 @@ impl <T:Clone+Send+Sync> Drop for PointIndexation<T> {
         log::debug!("clearing self.points_by_layer...");
         drop(self.points_by_layer.write());
         log::debug!("exiting PointIndexation drop");
-        log::info!(" drop sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_start.elapsed().as_secs());
+        // log::info!(" drop sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_start.elapsed().as_secs());
     } // end my drop
 
 } // end implementation Drop
@@ -408,14 +407,14 @@ impl <T:Clone+Send+Sync> Drop for PointIndexation<T> {
 impl<T:Clone+Send+Sync> PointIndexation<T> {
     pub fn new(max_nb_connection: usize, max_layer:usize, max_elements:usize) -> Self {
         let mut points_by_layer = Vec::with_capacity(max_layer);
-        for i in 0..max_layer { // recall that range are right extremeity excluded 
+        for i in 0..max_layer { // recall that range are right extremeity excluded
             // compute fraction of points going into layer i and do expected memory reservation
             let frac = (-(i as f64)/(max_layer as f64)).exp() - (-((i+1) as f64)/(max_layer as f64));
             let expected_size = ((frac * max_elements as f64).round()) as usize;
             points_by_layer.push(Vec::with_capacity(expected_size));
         }
         let layer_g = LayerGenerator::new(max_nb_connection, max_layer);
-        PointIndexation{ 
+        PointIndexation{
             max_nb_connection,
             max_layer,
             points_by_layer: Arc::new(RwLock::new(points_by_layer)),
@@ -528,8 +527,8 @@ impl<T:Clone+Send+Sync> PointIndexation<T> {
         dim
     }
 
-    /// returns (**by cloning**) the data inside a point given it PointId, or None if PointId is not coherent.  
-    /// Can be useful after reloading from a dump.   
+    /// returns (**by cloning**) the data inside a point given it PointId, or None if PointId is not coherent.
+    /// Can be useful after reloading from a dump.
     /// NOTE : This function should not be called during or before insertion in the structure is terminated as it
     /// uses read locks to access the inside of Hnsw structure.
     pub fn get_point_data(&self, p_id : &PointId) -> Option<Vec<T>> {
@@ -547,8 +546,8 @@ impl<T:Clone+Send+Sync> PointIndexation<T> {
     } // end of get_point_data
 
 
-    /// returns (**by Arc::clone**) the point given it PointId, or None if PointId is not coherent.  
-    /// Can be useful after reloading from a dump.   
+    /// returns (**by Arc::clone**) the point given it PointId, or None if PointId is not coherent.
+    /// Can be useful after reloading from a dump.
     /// NOTE : This function should not be called during or before insertion in the structure is terminated as it
     /// uses read locks to access the inside of Hnsw structure.
 #[allow(unused)]
@@ -563,7 +562,7 @@ impl<T:Clone+Send+Sync> PointIndexation<T> {
         }
         else {
             return None;
-        }        
+        }
     }  // end of get_point
 
 
@@ -604,7 +603,7 @@ impl <'a,T:Clone+Send+Sync> Iterator for IterPoint<'a,T> {
     fn next(&mut self) -> Option<Self::Item>{
         if self.layer == -1 {
             self.layer = 0;
-            self.slot_in_layer = 0;         
+            self.slot_in_layer = 0;
         }
         if (self.slot_in_layer  as usize) < self.pi_guard[self.layer as usize].len() {
             let slot = self.slot_in_layer as usize;
@@ -618,7 +617,7 @@ impl <'a,T:Clone+Send+Sync> Iterator for IterPoint<'a,T> {
             let entry_point_ref = self.point_indexation.entry_point.read();
             let points_by_layer = self.point_indexation.points_by_layer.read();
             let entry_point_level = entry_point_ref.as_ref().unwrap().p_id.0;
-            while (self.layer as u8) <= entry_point_level && 
+            while (self.layer as u8) <= entry_point_level &&
                         points_by_layer[self.layer as usize ].len() == 0 {
                         self.layer += 1;
             }
@@ -646,7 +645,7 @@ impl<'a,T:Clone+Send+Sync> IntoIterator for &'a PointIndexation<T> {
         IterPoint::new(self)
     }
 
-}  // end of IntoIterator for &'a PointIndexation<T> 
+}  // end of IntoIterator for &'a PointIndexation<T>
 
 
 
@@ -689,11 +688,11 @@ impl <'a,T:Clone+Send+Sync> Iterator for IterPointLayer<'a,T> {
 // ============================================================================================
 
 // The fields are made pub(crate) to be able to initialize struct from hnswio
-/// The Base structure for hnsw implementation.  
+/// The Base structure for hnsw implementation.
 /// The main useful functions are : new, insert, insert_parallel, search, parallel_search and file_dump
-/// as described in trait AnnT.  
-/// 
-/// Other functions are mainly for others crate to get access to some fields. 
+/// as described in trait AnnT.
+///
+/// Other functions are mainly for others crate to get access to some fields.
 pub struct Hnsw<T:Clone+Send+Sync, D: Distance<T>> {
     /// asked number of candidates in search
     pub(crate) ef_construction : usize,
@@ -706,9 +705,9 @@ pub struct Hnsw<T:Clone+Send+Sync, D: Distance<T>> {
     /// defuault to false
     pub(crate) keep_pruned: bool,
     /// max layer , recall rust is in 0..maxlevel right bound excluded
-    pub(crate) max_layer: usize,   
+    pub(crate) max_layer: usize,
     /// The global table containing points
-    pub(crate) layer_indexed_points: PointIndexation<T>, 
+    pub(crate) layer_indexed_points: PointIndexation<T>,
     /// dimension data stored in points
     #[allow(unused)]
     pub(crate) data_dimension : usize,
@@ -718,12 +717,11 @@ pub struct Hnsw<T:Clone+Send+Sync, D: Distance<T>> {
     pub(crate) searching : bool,
 }  // end of Hnsw
 
-
 impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
-    /// allocation function  
+    /// allocation function
     /// . max_nb_connection : number of neighbours stored, by layer, in tables. Must be less than 256.
-    /// . ef_construction : controls numbers of neighbours explored during construction. See README or paper.  
-    /// . max_elements : hint to speed up allocation tables. number of elements expected.  
+    /// . ef_construction : controls numbers of neighbours explored during construction. See README or paper.
+    /// . max_elements : hint to speed up allocation tables. number of elements expected.
     /// . f : the distance function
     pub fn new(max_nb_connection : usize , max_elements:usize, max_layer:usize, ef_construction: usize, f:D) -> Self {
         let adjusted_max_layer = (NB_LAYER_MAX as usize).min(max_layer);
@@ -743,10 +741,10 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
         log::info!("Hnsw extend candidates {:?}", extend_candidates);
         //
         Hnsw{max_nb_connection,
-                ef_construction:ef_construction, 
-                extend_candidates:extend_candidates, 
+                ef_construction:ef_construction,
+                extend_candidates:extend_candidates,
                 keep_pruned: keep_pruned,
-                max_layer: adjusted_max_layer, 
+                max_layer: adjusted_max_layer,
                 layer_indexed_points: layer_indexed_points,
                 data_dimension : 0,
                 dist_f: f,
@@ -775,10 +773,10 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
     pub fn get_nb_point(&self) -> usize {
         self.layer_indexed_points.get_nb_point()
     }
-    /// set searching mode.  
+    /// set searching mode.
     /// It is not possible to do parallel insertion and parallel searching simultaneously in different threads
-    /// so to enable searching after parallel insertion the flag must be set to true.  
-    /// To resume parallel insertion reset the flag to false and so on. 
+    /// so to enable searching after parallel insertion the flag must be set to true.
+    /// To resume parallel insertion reset the flag to false and so on.
     pub fn set_searching_mode(&mut self, flag: bool) {
         // must use an atomic!
         self.searching = flag;
@@ -799,7 +797,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
         &self.dist_f
     }
 
-    /// set extend_candidates to given flag. By default it is false.  
+    /// set extend_candidates to given flag. By default it is false.
     /// Only used in the level 0 layer during insertion (see the paper)
     /// flag to enforce that we have ef candidates neighbours examined as pruning strategy
     /// can discard some points
@@ -812,7 +810,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
     // parameters variations on the algorithm but not general use.
     #[allow(unused)]
     fn set_scale_modification(&mut self, scale_modification : f64) {
-        println!("\n scale modification factor {:?}, scale value : {:?} (factor must be between 0.5 and 2.)", 
+        println!("\n scale modification factor {:?}, scale value : {:?} (factor must be between 0.5 and 2.)",
                     scale_modification, self.layer_indexed_points.layer_g.scale);
         //
         if scale_modification >= 0.5 && scale_modification <= 2. {
@@ -833,10 +831,10 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
     //** with higher (one more) index than the argument layer. If the greedy search matches a sufficiently large number of points
     //** nearer to point searched (arg point) than entry_point it will finally get popped up from the heap of returned points
     //** but otherwise it will stay in the binary heap and so we can have a point in neighbours that is in fact in a layer
-    //** above the one we search in. 
-    //** The guarantee is that the binary heap will return points in layer 
+    //** above the one we search in.
+    //** The guarantee is that the binary heap will return points in layer
     //** with a larger index, although we can expect that most often (at least in densely populated layers) the returned
-    //** points will be found in searched layer 
+    //** points will be found in searched layer
     ///
     /// Greedy algorithm n° 2 in Malkov paper.
     /// search in a layer (layer) for the ef points nearest a point to be inserted in hnsw.
@@ -873,21 +871,21 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
         while candidate_points.len() > 0 {
             // get nearest point in candidate_points
             let c = candidate_points.pop().unwrap();
-            // f farthest point to 
+            // f farthest point to
             let f = return_points.peek().unwrap();
             assert!(f.dist_to_ref >= 0.);
             assert!(c.dist_to_ref <= 0.);
             log::trace!("comparaing c : {:?} f : {:?}", -(c.dist_to_ref), f.dist_to_ref);
             if -(c.dist_to_ref) > f.dist_to_ref {
-                // this comparison requires that we are sure that distances compared are distances to the same point : 
+                // this comparison requires that we are sure that distances compared are distances to the same point :
                 // This is the case we compare distance to point passed as arg.
-                log::trace!("fast return from search_layer, nb points : {:?} \n \t c {:?} \n \t f {:?} dists: {:?}  {:?}", 
+                log::trace!("fast return from search_layer, nb points : {:?} \n \t c {:?} \n \t f {:?} dists: {:?}  {:?}",
                                 return_points.len(), c.point_ref.p_id, f.point_ref.p_id, -(c.dist_to_ref), f.dist_to_ref);
                 return return_points;
             }
-            // now we scan neighborhood of c in layer and increment visited_point, candidate_points 
+            // now we scan neighborhood of c in layer and increment visited_point, candidate_points
             // and optimize candidate_points so that it contains points with lowest distances to point arg
-            // 
+            //
             let neighbours_c_l = &c.point_ref.neighbours.read()[layer as usize];
             let c_pid = c.point_ref.p_id;
             log::trace!("       search_layer, {:?} has  nb neighbours  : {:?} ", c_pid, neighbours_c_l.len());
@@ -933,9 +931,9 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
     }
 
 
-    // Hnsw insert.   
-    ///  Insert a data slice with its external id as given by the client.   
-    ///  The insertion method gives the point an internal id.  
+    // Hnsw insert.
+    ///  Insert a data slice with its external id as given by the client.
+    ///  The insertion method gives the point an internal id.
     ///  The slice insertion makes integration with ndarray crate easier than the vector insertion
    pub fn insert_slice(&self, data_with_id: (&[T],usize))  {
         //
@@ -949,7 +947,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
         let level = new_point.p_id.0;
         let mut enter_point_copy = None;
         let mut max_level_observed = 0;
-        // entry point has been set in 
+        // entry point has been set in
         { // I open a read lock on an option
             if let Some(arc_point) = self.layer_indexed_points.entry_point.read().as_ref() {
                 enter_point_copy = Some(Arc::clone(&arc_point));
@@ -975,7 +973,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
             }
             // the heap conversion is useless beccause of the preceding test.
             // sorted_points = from_positive_binaryheap_to_negative_binary_heap(&mut sorted_points);
-            // 
+            //
             if let Some(ep) = sorted_points.pop() {
                 // useful for projecting lower layer to upper layer. keep track of points encountered.
                 if new_point.neighbours.read()[l as usize].len() < self.get_max_nb_connection() as usize {
@@ -993,7 +991,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
                 log::trace!("layer still empty  {} : got null list", l);
             }
         }
-        // now enter_point_id_copy contains id of nearest 
+        // now enter_point_id_copy contains id of nearest
         // now loop down to 0
         for l in (0..level+1).rev() {
             let ef = self.ef_construction;
@@ -1014,13 +1012,13 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
                 }
                 let mut neighbours = Vec::<Arc<PointWithOrder<T>> >::with_capacity(nb_conn);
                 self.select_neighbours(&data, &mut sorted_points, nb_conn, extend_c, l, keep_pruned, &mut neighbours);
-                // sort neighbours 
+                // sort neighbours
                 neighbours.sort_unstable();
                 // we must add bidirecti*onal from data i.e new_point_id to neighbours
-                new_point.neighbours.write()[l as usize] = neighbours.clone(); 
+                new_point.neighbours.write()[l as usize] = neighbours.clone();
                 // this reverse neighbour update could be done here but we put it at end to gather all code
                 // requiring a mutex guard for multi threading.
-                // update ep for loop iteration. As we sorted neighbours the nearest 
+                // update ep for loop iteration. As we sorted neighbours the nearest
                 if neighbours.len() > 0 {
                     enter_point_copy = Some(Arc::clone(&neighbours[0].point_ref));
                 }
@@ -1038,18 +1036,18 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
     } // end of insert
 
 
-    /// Insert in parallel a slice of Vec\<T\> each associated to its id.    
-    /// It uses Rayon for threading so the number of insertions asked for must be large enough to be efficient.  
-    /// Typically 1000 * the number of threads.  
+    /// Insert in parallel a slice of Vec\<T\> each associated to its id.
+    /// It uses Rayon for threading so the number of insertions asked for must be large enough to be efficient.
+    /// Typically 1000 * the number of threads.
     /// Many consecutive parallel_insert can be done, so the size of vector inserted in one insertion can be optimized.
     pub fn parallel_insert(&self, datas: &Vec<(&Vec<T>, usize)> ) {
         datas.par_iter().for_each( |&item| self.insert(item));
     }  // end of parallel_insert
 
 
-    /// Insert in parallel slices of \[T\] each associated to its id.    
-    /// It uses Rayon for threading so the number of insertions asked for must be large enough to be efficient.  
-    /// Typically 1000 * the number of threads.  
+    /// Insert in parallel slices of \[T\] each associated to its id.
+    /// It uses Rayon for threading so the number of insertions asked for must be large enough to be efficient.
+    /// Typically 1000 * the number of threads.
     /// Facilitates the use with the ndarray crate as we can extract slices (for data in contiguous order) from Array.
     pub fn parallel_insert_slice(&self, datas: &Vec<(&[T], usize)> ) {
         datas.par_iter().for_each( |&item| self.insert_slice(item));
@@ -1081,7 +1079,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
                         continue;
                     }
                     q_point_neighbours[l_n].push(Arc::new(n_to_add));
-                    let nbn_at_l = q_point_neighbours[l_n].len();                    
+                    let nbn_at_l = q_point_neighbours[l_n].len();
                     //
                     // if l < level, update upward chaining, insert does a sort! t_q has a neighbour not yet in global table of points!
                     let threshold_shrinking;  // TODO optimize threshold
@@ -1094,7 +1092,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
                     let shrink = if nbn_at_l > threshold_shrinking {
                         true
                     } else {
-                        false 
+                        false
                     };
                     { // sort and shring if necessary
                         q_point_neighbours[l_n as usize].sort_unstable();
@@ -1104,7 +1102,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
                     }
                 }  // end protection against point identity
             }
-        } 
+        }
      //   println!("     exitingreverse update neighbourhood for  new point {:?} ", new_point.p_id);
     }  // end of reverse_update_neighborhood_simple
 
@@ -1113,17 +1111,17 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
         &self.layer_indexed_points
     }
 
-    
+
     // This is best explained in : Navarro. Searching in metric spaces by spatial approximation.
     /// simplest searh neighbours
     // The binary heaps here is with negative distance sorted.
-    fn select_neighbours(&self, data: &[T], candidates: &mut BinaryHeap<Arc<PointWithOrder<T>> >, 
-                        nb_neighbours_asked: usize, 
-                        extend_candidates_asked: bool, 
+    fn select_neighbours(&self, data: &[T], candidates: &mut BinaryHeap<Arc<PointWithOrder<T>> >,
+                        nb_neighbours_asked: usize,
+                        extend_candidates_asked: bool,
                         layer:u8,
                         keep_pruned: bool,
                         neighbours_vec : &mut Vec<Arc<PointWithOrder<T>> >)
-        { 
+        {
         //
         log::trace!("entering select_neighbours : nb candidates: {}", candidates.len());
         //
@@ -1158,7 +1156,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
             for (_p_id, p_point) in candidates_set.iter() {
                 let n_p_layer = &p_point.neighbours.read()[layer as usize];
                 for q in n_p_layer {
-                    if !candidates_set.contains_key(& q.point_ref.p_id) && !new_candidates_set.contains_key(& q.point_ref.p_id) { 
+                    if !candidates_set.contains_key(& q.point_ref.p_id) && !new_candidates_set.contains_key(& q.point_ref.p_id) {
                         new_candidates_set.insert(q.point_ref.p_id, Arc::clone(&q.point_ref));
                     }
                 }
@@ -1197,7 +1195,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
             }
         }
         // now this part of neighbours is the most interesting and is distance sorted.
-    
+
         // not pruned are at the end of neighbours_vec which is not re-sorted , but discarded are sorted.
         if keep_pruned {
             while discarded_points.len() > 0 && neighbours_vec.len() < nb_neighbours_asked {
@@ -1238,7 +1236,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
                 return Vec::<Neighbour>::new();
             }
             else {
-              entry_point =  Arc::clone((*entry_point_opt_ref).as_ref().unwrap()); 
+              entry_point =  Arc::clone((*entry_point_opt_ref).as_ref().unwrap());
             }
         }
         //
@@ -1264,16 +1262,16 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
         // get the min of K and ef points into a vector.
         //
         let last = knbn.min(ef).min(neighbours.len());
-        let knn_neighbours : Vec<Neighbour> = 
+        let knn_neighbours : Vec<Neighbour> =
                 neighbours[0..last].iter().map(|p| Neighbour::new(p.as_ref().point_ref.origin_id, p.as_ref().dist_to_ref, p.as_ref().point_ref.p_id)).collect();
 
         knn_neighbours
     } // end of knn_search
 
 
-    /// search the first knbn nearest neigbours of a data and returns a Vector of Neighbour.   
+    /// search the first knbn nearest neigbours of a data and returns a Vector of Neighbour.
     /// The parameter ef controls the width of the search in the lowest level, it must be greater
-    /// than number of neighbours asked.  
+    /// than number of neighbours asked.
     /// A rule of thumb could be between knbn and max_nb_connection.
     pub fn search(&self, data :&[T] , knbn:usize, ef_arg:usize) -> Vec<Neighbour> {
         //
@@ -1284,7 +1282,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
                 return Vec::<Neighbour>::new();
             }
             else {
-              entry_point =  Arc::clone((*entry_point_opt_ref).as_ref().unwrap()); 
+              entry_point =  Arc::clone((*entry_point_opt_ref).as_ref().unwrap());
             }
         }
         //
@@ -1306,7 +1304,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
                         dist_to_entry = tmp_dist;
                     }
                 } // end of for on neighbours
-            } 
+            }
             if has_changed {
                 pivot =  Arc::clone(new_pivot.as_ref().unwrap());
             }
@@ -1320,7 +1318,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
         // get the min of K and ef points into a vector.
         //
         let last = knbn.min(ef).min(neighbours.len());
-        let knn_neighbours : Vec<Neighbour> = 
+        let knn_neighbours : Vec<Neighbour> =
                 neighbours[0..last].iter().map(|p| Neighbour::new(p.as_ref().point_ref.origin_id, p.as_ref().dist_to_ref, p.as_ref().point_ref.p_id)).collect();
 
         knn_neighbours
@@ -1368,7 +1366,7 @@ impl <T:Clone+Send+Sync, D: Distance<T>+Send+Sync > Hnsw<T,D>  {
 fn from_negative_binaryheap_to_sorted_vector<T:Send+Sync+Copy>(heap_points : &mut BinaryHeap<Arc<PointWithOrder<T> >> ) -> Vec<Arc<PointWithOrder<T> > > {
     let nb_points = heap_points.len();
     let mut vec_points = Vec::<Arc<PointWithOrder<T> >>::with_capacity(nb_points);
-    //  
+    //
     for p in heap_points.iter() {
         assert!(p.dist_to_ref <= 0.);
         let reverse_p = Arc::new(PointWithOrder::new(&p.point_ref, -p.dist_to_ref));
@@ -1382,11 +1380,11 @@ fn from_negative_binaryheap_to_sorted_vector<T:Send+Sync+Copy>(heap_points : &mu
 
 // This function takes a binary heap with points declared with a positive distance
 // and returns a binary_heap of points with their correct negative distance to some reference distance
-// 
+//
 fn from_positive_binaryheap_to_negative_binary_heap<T:Send+Sync+Clone>(positive_heap : &mut BinaryHeap<Arc<PointWithOrder<T> >> ) -> BinaryHeap<Arc<PointWithOrder<T> > > {
     let nb_points = positive_heap.len();
     let mut negative_heap = BinaryHeap::<Arc<PointWithOrder<T> >>::with_capacity(nb_points);
-    //  
+    //
     for p in  positive_heap.iter() {
         assert!(p.dist_to_ref >= 0.);
         let reverse_p = Arc::new(PointWithOrder::new(&p.point_ref, -p.dist_to_ref));
@@ -1402,16 +1400,16 @@ fn from_positive_binaryheap_to_negative_binary_heap<T:Send+Sync+Clone>(positive_
 // in fact checks only equality of graph
 #[allow(unused)]
 pub(crate) fn check_graph_equality<T1, D1, T2, D2>(hnsw1:&Hnsw<T1,D1>, hnsw2: &Hnsw<T2,D2>)
-    where   T1:Copy+Clone+Send+Sync, 
-            D1:Distance<T1>+Default+Send+Sync, 
-            T2:Copy+Clone+Send+Sync, 
+    where   T1:Copy+Clone+Send+Sync,
+            D1:Distance<T1>+Default+Send+Sync,
+            T2:Copy+Clone+Send+Sync,
             D2:Distance<T2>+Default+Send+Sync {
     //
     log::debug!("\n in check_graph_equality");
     //
     assert_eq!(hnsw1.get_nb_point(), hnsw2.get_nb_point());
     // check for entry point
-    assert!(hnsw1.layer_indexed_points.entry_point.read().is_some() || 
+    assert!(hnsw1.layer_indexed_points.entry_point.read().is_some() ||
         hnsw1.layer_indexed_points.entry_point.read().is_some(), "one entry point is None");
     let ep1_read = hnsw1.layer_indexed_points.entry_point.read();
     let ep2_read = hnsw2.layer_indexed_points.entry_point.read();
@@ -1488,7 +1486,7 @@ fn test_iter_point() {
             xsi = rng.sample(unif);
             data[j].push(xsi);
         }
-    } 
+    }
     //
     // check insertion
     let ef_construct= 25;
@@ -1499,7 +1497,7 @@ fn test_iter_point() {
         hns.insert((&data[i], i));
     }
     let cpu_time = start.elapsed();
-    println!(" test_insert_iter_point time inserting {:?}", cpu_time); 
+    println!(" test_insert_iter_point time inserting {:?}", cpu_time);
 
     hns.dump_layer_info();
     // now check iteration
@@ -1535,7 +1533,7 @@ fn test_iter_layerpoint() {
             xsi = rng.sample(unif);
             data[j].push(xsi);
         }
-    } 
+    }
     //
     // check insertion
     let ef_construct= 25;
@@ -1546,7 +1544,7 @@ fn test_iter_layerpoint() {
         hns.insert((&data[i], i));
     }
     let cpu_time = start.elapsed();
-    println!(" test_insert_iter_point time inserting {:?}", cpu_time); 
+    println!(" test_insert_iter_point time inserting {:?}", cpu_time);
 
     hns.dump_layer_info();
     // now check iteration

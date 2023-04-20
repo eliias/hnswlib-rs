@@ -1,7 +1,7 @@
 //! This file contains lib to call hnsw from julia (or any language providing a C api)
-//! The AnnT trait is implemented with macros for u32, u16, u8, f32, f64 and i32.  
+//! The AnnT trait is implemented with macros for u32, u16, u8, f32, f64 and i32.
 //! The macro declare_myapi_type!  produces struct HnswApif32 and so on.
-//! 
+//!
 
 use std::ptr;
 use std::fs::OpenOptions;
@@ -118,7 +118,7 @@ macro_rules! generate_insert(
 macro_rules! generate_parallel_insert(
 ($function_name:ident, $api_name:ty, $type_val:ty) => (
         #[no_mangle]
-        pub extern "C" fn $function_name(hnsw_api : *mut $api_name, nb_vec: usize, vec_len : usize, 
+        pub extern "C" fn $function_name(hnsw_api : *mut $api_name, nb_vec: usize, vec_len : usize,
                         datas : *mut *const $type_val, ids : *const usize) {
             //
             log::trace!("entering parallel_insert type {:?}  , vec len is {:?}, nb_vec : {:?}", stringify!($type_val), vec_len, nb_vec);
@@ -151,19 +151,19 @@ macro_rules! generate_parallel_insert(
             unsafe { (*hnsw_api).opaque.parallel_insert_data(&request); };
             log::trace!("exiting parallel_insert");
         } // end of parallel_insert
-    )   
+    )
 );
 
 
 macro_rules! generate_search_neighbours(
 ($function_name:ident, $api_name:ty, $type_val:ty) => (
         #[no_mangle]
-        pub extern "C" fn $function_name(hnsw_api : *const $api_name, len:usize, data : *const $type_val, 
+        pub extern "C" fn $function_name(hnsw_api : *const $api_name, len:usize, data : *const $type_val,
                                 knbn : usize, ef_search : usize) ->  *const Neighbourhood_api {
-            //                       
+            //
             log::trace!("entering search_neighbours type {:?}, vec len is {:?}, id : {:?} ef_search {:?}", stringify!($type_val), len, knbn, ef_search);
             let data_v : Vec<$type_val>;
-            let neighbours : Vec<Neighbour>; 
+            let neighbours : Vec<Neighbour>;
             unsafe {
                 let slice = std::slice::from_raw_parts(data, len);
                 data_v = Vec::from(slice);
@@ -174,7 +174,7 @@ macro_rules! generate_search_neighbours(
             log::trace!(" got nb neighbours {:?}", neighbours_api.len());
             // for i in 0..neighbours_api.len() {
             //    println!(" id {:?}  dist : {:?} ", neighbours_api[i].id, neighbours_api[i].d);
-            // }    
+            // }
             let nbgh_i = neighbours.len() as i64;
             let neighbours_ptr = neighbours_api.as_ptr();
             std::mem::forget(neighbours_api);
@@ -195,12 +195,12 @@ macro_rules! generate_parallel_search_neighbours(
 ($function_name:ident, $api_name:ty, $type_val:ty) => (
         #[no_mangle]
         /// search nb_vec of size vec_len. The the searches will be done in // as far as possible.
-        pub extern "C" fn $function_name(hnsw_api : *const $api_name, nb_vec : usize, vec_len :i64, 
+        pub extern "C" fn $function_name(hnsw_api : *const $api_name, nb_vec : usize, vec_len :i64,
                             data : *mut *const $type_val, knbn : usize, ef_search : usize) ->  *const Vec_api<Neighbourhood_api> {
             //
             // must build a Vec<Vec<f32> to build request
             log::trace!("recieving // search request for type: {:?} with {:?} vectors", stringify!($type_val), nb_vec);
-            let neighbours : Vec<Vec<Neighbour> >; 
+            let neighbours : Vec<Vec<Neighbour> >;
             let mut data_v = Vec::<Vec<$type_val>>::with_capacity(nb_vec);
             unsafe {
                 let slice = std::slice::from_raw_parts(data, nb_vec);
@@ -263,24 +263,24 @@ macro_rules! generate_loadhnsw(
         #[no_mangle]
         pub extern "C" fn $function_name(flen : usize, name : *const u8)  -> *const $api_name {
             let  slice = unsafe { std::slice::from_raw_parts(name, flen)} ;
-            let filename = String::from_utf8_lossy(slice).into_owned(); 
+            let filename = String::from_utf8_lossy(slice).into_owned();
             //
             let buffers = make_readers(&filename);
             let mut graph_in = buffers.0;
             let mut data_in = buffers.1;
             // we need to call load_description first to get distance name
             let hnsw_description = load_description(&mut graph_in).unwrap();
-                // here we need a macro to dispatch 
+                // here we need a macro to dispatch
             let hnsw_loaded_res = load_hnsw::<$type_val, $type_dist>(&mut graph_in, &hnsw_description, &mut data_in);
             if let Ok(hnsw_loaded) = hnsw_loaded_res {
                 let api = <$api_name>::new(Box::new(hnsw_loaded));
-                return Box::into_raw(Box::new(api));  
+                return Box::into_raw(Box::new(api));
             }
             else {
                 log::warn!("an error occured, could not reload data from {:?}", filename);
             }
             return ptr::null();
-        }  // end of load_hnswdump_   
+        }  // end of load_hnswdump_
      )
 );
 
@@ -332,7 +332,7 @@ pub extern "C" fn init_hnsw_f32(max_nb_conn : usize, ef_const:usize, namelen: us
     let dname = String::from_utf8_lossy(slice).into_owned();
     // map distname to sthg. This whole block will go to a macro
     match dname.as_str() {
-    "DistL1" => { 
+    "DistL1" => {
         log::info!(" received DistL1");
         let h = Hnsw::<f32, DistL1 >::new(max_nb_conn, 10000, 16, ef_const, DistL1{});
         let api = HnswApif32{opaque: Box::new(h)};
@@ -341,27 +341,27 @@ pub extern "C" fn init_hnsw_f32(max_nb_conn : usize, ef_const:usize, namelen: us
     "DistL2" => {
         let h = Hnsw::<f32, DistL2 >::new(max_nb_conn, 10000, 16, ef_const, DistL2{});
         let api = HnswApif32{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api));        
+        return Box::into_raw(Box::new(api));
     }
     "DistDot" =>  {
         let h = Hnsw::<f32, DistDot >::new(max_nb_conn, 10000, 16, ef_const, DistDot{});
         let api = HnswApif32{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api));        
+        return Box::into_raw(Box::new(api));
     }
     "DistHellinger" =>  {
         let h = Hnsw::<f32, DistHellinger >::new(max_nb_conn, 10000, 16, ef_const, DistHellinger{});
         let api = HnswApif32{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api));        
+        return Box::into_raw(Box::new(api));
     }
     "DistJeffreys" =>  {
         let h = Hnsw::<f32, DistJeffreys>::new(max_nb_conn, 10000, 16, ef_const, DistJeffreys{});
         let api = HnswApif32{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api));        
+        return Box::into_raw(Box::new(api));
     }
     "DistJensenShannon" =>  {
         let h = Hnsw::<f32, DistJensenShannon>::new(max_nb_conn, 10000, 16, ef_const, DistJensenShannon{});
         let api = HnswApif32{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api));        
+        return Box::into_raw(Box::new(api));
     }
     _   => {
         log::warn!("init_hnsw_f32 received unknow distance {:?} ", dname);
@@ -381,7 +381,7 @@ pub extern "C" fn new_hnsw_f32(max_nb_conn : usize, ef_const:usize, namelen: usi
     let dname = String::from_utf8_lossy(slice);
     // map distname to sthg. This whole block will go to a macro
     match dname.as_ref() {
-        "DistL1" => { 
+        "DistL1" => {
             log::info!(" received DistL1");
             let h = Hnsw::<f32, DistL1 >::new(max_nb_conn, max_elements, max_layer, ef_const, DistL1{});
             let api = HnswApif32{opaque: Box::new(h)};
@@ -390,27 +390,27 @@ pub extern "C" fn new_hnsw_f32(max_nb_conn : usize, ef_const:usize, namelen: usi
         "DistL2" => {
             let h = Hnsw::<f32, DistL2 >::new(max_nb_conn, max_elements, max_layer, ef_const, DistL2{});
             let api = HnswApif32{opaque: Box::new(h)};
-            return Box::into_raw(Box::new(api));        
+            return Box::into_raw(Box::new(api));
         }
         "DistDot" =>  {
             let h = Hnsw::<f32, DistDot >::new(max_nb_conn, max_elements, max_layer, ef_const, DistDot{});
             let api = HnswApif32{opaque: Box::new(h)};
-            return Box::into_raw(Box::new(api));        
+            return Box::into_raw(Box::new(api));
         }
         "DistHellinger" =>  {
             let h = Hnsw::<f32, DistHellinger >::new(max_nb_conn, max_elements, max_layer, ef_const, DistHellinger{});
             let api = HnswApif32{opaque: Box::new(h)};
-            return Box::into_raw(Box::new(api));        
+            return Box::into_raw(Box::new(api));
         }
         "DistJeffreys" =>  {
             let h = Hnsw::<f32, DistJeffreys>::new(max_nb_conn, max_elements, max_layer, ef_const, DistJeffreys{});
             let api = HnswApif32{opaque: Box::new(h)};
-            return Box::into_raw(Box::new(api));        
+            return Box::into_raw(Box::new(api));
         }
         "DistJensenShannon" =>  {
             let h = Hnsw::<f32, DistJensenShannon>::new(max_nb_conn, max_elements, max_layer, ef_const, DistJensenShannon{});
             let api = HnswApif32{opaque: Box::new(h)};
-            return Box::into_raw(Box::new(api));        
+            return Box::into_raw(Box::new(api));
         }
         _   => {
             log::warn!("init_hnsw_f32 received unknow distance {:?} ", dname);
@@ -434,8 +434,8 @@ pub unsafe extern "C" fn drop_hnsw_u16(p: *const HnswApiu16) {
 
 
 #[no_mangle]
-pub extern "C" fn init_hnsw_ptrdist_f32(max_nb_conn : usize, ef_const:usize, c_func : extern "C" fn(*const f32, *const f32, u64) -> f32 ) -> *const HnswApif32 {
-    log::info!("init_ hnsw_ptrdist: ptr  {:?}", c_func);
+pub extern "C" fn init_hnsw_ptrdist_f32(max_nb_conn : usize, ef_const:usize, c_func : extern "C" fn(*const f32, *const f32, u32) -> f32 ) -> *const HnswApif32 {
+    // log::info!("init_ hnsw_ptrdist: ptr  {:?}", c_func);
     let c_dist = DistCFFI::<f32>::new(c_func);
     let h = Hnsw::<f32, DistCFFI<f32> >::new(max_nb_conn, 10000, 16, ef_const, c_dist);
     let api = HnswApif32{opaque: Box::new(h)};
@@ -458,7 +458,7 @@ pub extern "C" fn insert_f32(hnsw_api : *mut HnswApif32, len:usize, data : *cons
 
 
 #[no_mangle]
-pub extern "C" fn parallel_insert_f32(hnsw_api : *mut HnswApif32, nb_vec: usize, vec_len : usize, 
+pub extern "C" fn parallel_insert_f32(hnsw_api : *mut HnswApif32, nb_vec: usize, vec_len : usize,
                 datas : *mut *const f32, ids : *const usize) {
     //
     // log::debug!("entering parallel_insert_f32 , vec len is {:?}, nb_vec : {:?}", vec_len, nb_vec);
@@ -495,12 +495,12 @@ pub extern "C" fn parallel_insert_f32(hnsw_api : *mut HnswApif32, nb_vec: usize,
 
 
 #[no_mangle]
-pub extern "C" fn search_neighbours_f32(hnsw_api : *const HnswApif32, len:usize, data : *const f32, 
+pub extern "C" fn search_neighbours_f32(hnsw_api : *const HnswApif32, len:usize, data : *const f32,
                         knbn : usize, ef_search : usize) ->  *const Neighbourhood_api {
-    //                       
+    //
     log::trace!("entering search_neighbours , vec len is {:?}, id : {:?} ef_search {:?}", len, knbn, ef_search);
     let data_v : Vec<f32>;
-    let neighbours : Vec<Neighbour>; 
+    let neighbours : Vec<Neighbour>;
     unsafe {
         let slice = std::slice::from_raw_parts(data, len);
         data_v = Vec::from(slice);
@@ -511,7 +511,7 @@ pub extern "C" fn search_neighbours_f32(hnsw_api : *const HnswApif32, len:usize,
     log::trace!(" got nb neighbours {:?}", neighbours_api.len());
     // for i in 0..neighbours_api.len() {
     //    println!(" id {:?}  dist : {:?} ", neighbours_api[i].id, neighbours_api[i].d);
-    // }    
+    // }
     let nbgh_i = neighbours.len() as i64;
     let neighbours_ptr = neighbours_api.as_ptr();
     std::mem::forget(neighbours_api);
@@ -540,7 +540,7 @@ pub extern "C" fn init_hnsw_i32(max_nb_conn : usize, ef_const:usize, namelen: us
     let  slice = unsafe { std::slice::from_raw_parts(cdistname, namelen)} ;
     let dname = String::from_utf8_lossy(slice);
     // map distname to sthing. This whole block will go to a macro
-    if dname == "DistL1" { 
+    if dname == "DistL1" {
         log::info!(" received DistL1");
         let h = Hnsw::<i32, DistL1 >::new(max_nb_conn, 10000, 16, ef_const, DistL1{});
         let api = HnswApii32{opaque: Box::new(h)};
@@ -549,13 +549,13 @@ pub extern "C" fn init_hnsw_i32(max_nb_conn : usize, ef_const:usize, namelen: us
     else if dname == "DistL2" {
         let h = Hnsw::<i32, DistL2 >::new(max_nb_conn, 10000, 16, ef_const, DistL2{});
         let api = HnswApii32{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api));        
+        return Box::into_raw(Box::new(api));
     }
     else if dname == "DistHamming" {
         let h = Hnsw::<i32, DistHamming>::new(max_nb_conn, 10000, 16, ef_const, DistHamming{});
         let api = HnswApii32{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api));         
-    } 
+        return Box::into_raw(Box::new(api));
+    }
     let p = ptr::null::< HnswApii32 >();
     p
 } // end of init_hnsw_i32
@@ -564,8 +564,9 @@ pub extern "C" fn init_hnsw_i32(max_nb_conn : usize, ef_const:usize, namelen: us
 
 
 #[no_mangle]
-pub extern "C" fn init_hnsw_ptrdist_i32(max_nb_conn : usize, ef_const:usize, 
-                c_func : extern "C" fn(*const i32, *const i32, u64) -> f32 ) -> *const HnswApii32 {
+pub extern "C" fn init_hnsw_ptrdist_i32(max_nb_conn : usize, ef_const:usize,
+                c_func : extern "C" fn(*const i32, *const i32, u32) -> f32 ) -> *const
+HnswApii32 {
     log::debug!("init_ hnsw_ptrdist: ptr  {:?}", c_func);
     let c_dist = DistCFFI::<i32>::new(c_func);
     let h = Hnsw::<i32, DistCFFI<i32> >::new(max_nb_conn, 10000, 16, ef_const, c_dist);
@@ -593,7 +594,7 @@ pub extern "C" fn init_hnsw_u32(max_nb_conn : usize, ef_const:usize, namelen: us
     let  slice = unsafe { std::slice::from_raw_parts(cdistname, namelen)} ;
     let dname = String::from_utf8_lossy(slice);
     // map distname to sthg. This whole block will go to a macro
-    if dname == "DistL1" { 
+    if dname == "DistL1" {
         log::debug!(" received DistL1");
         let h = Hnsw::<u32, DistL1 >::new(max_nb_conn, 10000, 16, ef_const, DistL1{});
         let api = HnswApiu32{opaque: Box::new(h)};
@@ -602,18 +603,18 @@ pub extern "C" fn init_hnsw_u32(max_nb_conn : usize, ef_const:usize, namelen: us
     else if dname == "DistL2" {
         let h = Hnsw::<u32, DistL2 >::new(max_nb_conn, 10000, 16, ef_const, DistL2{});
         let api = HnswApiu32{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api)); 
-    }       
+        return Box::into_raw(Box::new(api));
+    }
     else if dname == "DistJaccard" {
         let h = Hnsw::<u32, DistJaccard >::new(max_nb_conn, 10000, 16, ef_const, DistJaccard{});
         let api = HnswApiu32{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api));         
+        return Box::into_raw(Box::new(api));
     }
     else if dname == "DistHamming" {
         let h = Hnsw::<u32, DistHamming>::new(max_nb_conn, 10000, 16, ef_const, DistHamming{});
         let api = HnswApiu32{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api));         
-    } 
+        return Box::into_raw(Box::new(api));
+    }
     //
     let p = ptr::null::< HnswApiu32 >();
     p
@@ -623,8 +624,8 @@ pub extern "C" fn init_hnsw_u32(max_nb_conn : usize, ef_const:usize, namelen: us
 
 
 #[no_mangle]
-pub extern "C" fn init_hnsw_ptrdist_u32(max_nb_conn : usize, ef_const:usize, 
-                c_func : extern "C" fn(*const u32, *const u32, u64) -> f32 ) -> *const HnswApiu32 {
+pub extern "C" fn init_hnsw_ptrdist_u32(max_nb_conn : usize, ef_const:usize,
+                c_func : extern "C" fn(*const u32, *const u32, u32) -> f32 ) -> *const HnswApiu32 {
     log::info!("init_ hnsw_ptrdist: ptr  {:?}", c_func);
     let c_dist = DistCFFI::<u32>::new(c_func);
     let h = Hnsw::<u32, DistCFFI<u32> >::new(max_nb_conn, 10000, 16, ef_const, c_dist);
@@ -654,7 +655,7 @@ pub extern "C" fn init_hnsw_u16(max_nb_conn : usize, ef_const:usize, namelen: us
     let  slice = unsafe { std::slice::from_raw_parts(cdistname, namelen)} ;
     let dname = String::from_utf8_lossy(slice);
     // map distname to sthg. This whole block will go to a macro
-    if dname == "DistL1" { 
+    if dname == "DistL1" {
         log::info!(" received DistL1");
         let h = Hnsw::<u16, DistL1 >::new(max_nb_conn, 10000, 16, ef_const, DistL1{});
         let api = HnswApiu16{opaque: Box::new(h)};
@@ -663,12 +664,12 @@ pub extern "C" fn init_hnsw_u16(max_nb_conn : usize, ef_const:usize, namelen: us
     else if dname == "DistL2" {
         let h = Hnsw::<u16, DistL2 >::new(max_nb_conn, 10000, 16, ef_const, DistL2{});
         let api = HnswApiu16{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api));        
+        return Box::into_raw(Box::new(api));
     }
     else if dname == "DistHamming" {
         let h = Hnsw::<u16, DistHamming >::new(max_nb_conn, 10000, 16, ef_const, DistHamming{});
         let api = HnswApiu16{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api));         
+        return Box::into_raw(Box::new(api));
     }
     else if dname == "DistJaccard" {
         let h = Hnsw::<u16, DistJaccard >::new(max_nb_conn, 10000, 16, ef_const, DistJaccard{});
@@ -723,8 +724,8 @@ pub extern "C" fn new_hnsw_u16(max_nb_conn : usize, ef_const:usize, namelen: usi
 
 
 #[no_mangle]
-pub extern "C" fn init_hnsw_ptrdist_u16(max_nb_conn : usize, ef_const:usize, 
-                c_func : extern "C" fn(*const u16, *const u16, u64) -> f32 ) -> *const HnswApiu16 {
+pub extern "C" fn init_hnsw_ptrdist_u16(max_nb_conn : usize, ef_const:usize,
+                c_func : extern "C" fn(*const u16, *const u16, u32) -> f32 ) -> *const HnswApiu16 {
     log::info!("init_ hnsw_ptrdist: ptr  {:?}", c_func);
     let c_dist = DistCFFI::<u16>::new(c_func);
     let h = Hnsw::<u16, DistCFFI<u16> >::new(max_nb_conn, 10000, 16, ef_const, c_dist);
@@ -752,7 +753,7 @@ pub extern "C" fn init_hnsw_u8(max_nb_conn : usize, ef_const:usize, namelen: usi
     let  slice = unsafe { std::slice::from_raw_parts(cdistname, namelen)} ;
     let dname = String::from_utf8_lossy(slice);
     // map distname to sthg. This whole block will go to a macro
-    if dname == "DistL1" { 
+    if dname == "DistL1" {
         log::info!(" received DistL1");
         let h = Hnsw::<u8, DistL1 >::new(max_nb_conn, 10000, 16, ef_const, DistL1{});
         let api = HnswApiu8{opaque: Box::new(h)};
@@ -761,17 +762,17 @@ pub extern "C" fn init_hnsw_u8(max_nb_conn : usize, ef_const:usize, namelen: usi
     else if dname == "DistL2" {
         let h = Hnsw::<u8, DistL2 >::new(max_nb_conn, 10000, 16, ef_const, DistL2{});
         let api = HnswApiu8{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api));        
+        return Box::into_raw(Box::new(api));
     }
     else if dname == "DistHamming" {
         let h = Hnsw::<u8, DistHamming >::new(max_nb_conn, 10000, 16, ef_const, DistHamming{});
         let api = HnswApiu8{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api));         
+        return Box::into_raw(Box::new(api));
     }
     else if dname == "DistJaccard" {
         let h = Hnsw::<u8, DistJaccard >::new(max_nb_conn, 10000, 16, ef_const, DistJaccard{});
         let api = HnswApiu8{opaque: Box::new(h)};
-        return Box::into_raw(Box::new(api));         
+        return Box::into_raw(Box::new(api));
     }
     let p = ptr::null::< HnswApiu8 >();
     p
@@ -780,8 +781,8 @@ pub extern "C" fn init_hnsw_u8(max_nb_conn : usize, ef_const:usize, namelen: usi
 
 
 #[no_mangle]
-pub extern "C" fn init_hnsw_ptrdist_u8(max_nb_conn : usize, ef_const:usize, 
-                c_func : extern "C" fn(*const u8, *const u8, u64) -> f32 ) -> *const HnswApiu8 {
+pub extern "C" fn init_hnsw_ptrdist_u8(max_nb_conn : usize, ef_const:usize,
+                c_func : extern "C" fn(*const u8, *const u8, u32) -> f32 ) -> *const HnswApiu8 {
     log::info!("init_ hnsw_ptrdist: ptr  {:?}", c_func);
     let c_dist = DistCFFI::<u8>::new(c_func);
     let h = Hnsw::<u8, DistCFFI<u8> >::new(max_nb_conn, 10000, 16, ef_const, c_dist);
@@ -845,7 +846,7 @@ impl DescriptionFFI {
 pub extern "C" fn load_hnsw_description(flen : usize, name : *const u8) -> *const DescriptionFFI {
     // opens file
     let  slice = unsafe { std::slice::from_raw_parts(name, flen)} ;
-    let filename = String::from_utf8_lossy(slice).into_owned();   
+    let filename = String::from_utf8_lossy(slice).into_owned();
     let fpath = PathBuf::from(filename);
     let fileres = OpenOptions::new().read(true).open(&fpath);
     //
@@ -894,7 +895,7 @@ pub extern "C" fn load_hnsw_description(flen : usize, name : *const u8) -> *cons
 
 
 // This function provides the 2 buffers needed to read the dump of a graph
-// in file basename generated by 
+// in file basename generated by
 fn make_readers(basename: &String) -> (BufReader<std::fs::File>, BufReader<std::fs::File>) {
     let mut graphfname = String::clone(basename);
     graphfname.push_str(".hnsw.graph");
@@ -902,17 +903,17 @@ fn make_readers(basename: &String) -> (BufReader<std::fs::File>, BufReader<std::
     let graphfileres = OpenOptions::new().read(true).open(&graphpath);
     if graphfileres.is_err() {
         println!("make_readers : could not open file {:?}", graphpath.as_os_str());
-        std::panic::panic_any("make_readers : could not open file".to_string());            
+        std::panic::panic_any("make_readers : could not open file".to_string());
     }
     let graphfile = graphfileres.unwrap();
-    //  
+    //
     let mut datafname = String::clone(basename);
     datafname.push_str(".hnsw.data");
     let datapath = PathBuf::from(datafname);
     let datafileres = OpenOptions::new().read(true).open(&datapath);
     if datafileres.is_err() {
         println!("make_readers: could not open file {:?}", datapath.as_os_str());
-        std::panic::panic_any("make_readers: could not open file".to_string());            
+        std::panic::panic_any("make_readers: could not open file".to_string());
     }
     let datafile = datafileres.unwrap();
     //
